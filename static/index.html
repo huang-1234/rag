@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>企业级RAG服务演示</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .query-section textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .response {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            min-height: 100px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid #3498db;
+            color: #3498db;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .sync-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .source-name {
+            flex: 1;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            margin: 0 10px;
+        }
+
+        .status-badge.success {
+            background-color: #2ecc71;
+            color: white;
+        }
+
+        .status-badge.processing {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .status-badge.failed {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .progress-bar {
+            width: 100px;
+            height: 10px;
+            background-color: #eee;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 0 10px;
+        }
+
+        .progress {
+            height: 100%;
+            background-color: #3498db;
+            width: 0;
+            transition: width 0.3s;
+        }
+
+        .last-sync {
+            font-size: 12px;
+            color: #777;
+        }
+
+        .health-monitor {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .metric {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            margin: 0 5px;
+        }
+
+        .label {
+            font-size: 12px;
+            color: #777;
+            margin-bottom: 5px;
+        }
+
+        .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>企业级RAG服务演示</h1>
+    </header>
+
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" data-tab="query">查询</div>
+            <div class="tab" data-tab="upload">文档上传</div>
+            <div class="tab" data-tab="sync">同步状态</div>
+            <div class="tab" data-tab="health">健康监控</div>
+        </div>
+
+        <div id="query-tab" class="tab-content active">
+            <div class="card query-section">
+                <h2>RAG查询</h2>
+                <textarea id="query" placeholder="输入您的问题..."></textarea>
+                <button onclick="submitQuery()">执行查询</button>
+                <div id="response" class="response">查询结果将显示在这里...</div>
+            </div>
+        </div>
+
+        <div id="upload-tab" class="tab-content">
+            <div class="card">
+                <h2>文档上传</h2>
+                <form id="upload-form" class="upload-form">
+                    <div class="form-group">
+                        <label for="title">文档标题</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="file">选择文件</label>
+                        <input type="file" id="file" name="file" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="author">作者</label>
+                        <input type="text" id="author" name="author">
+                    </div>
+                    <div class="form-group">
+                        <label for="tags">标签（逗号分隔）</label>
+                        <input type="text" id="tags" name="tags" placeholder="标签1,标签2,标签3">
+                    </div>
+                    <button type="button" onclick="uploadDocument()">上传文档</button>
+                </form>
+                <div id="upload-result" class="response"></div>
+            </div>
+        </div>
+
+        <div id="sync-tab" class="tab-content">
+            <div class="card">
+                <h2>文档同步状态</h2>
+                <div id="sync-status">
+                    <div class="sync-item">
+                        <span class="source-name">飞书产品文档</span>
+                        <span class="status-badge success">已同步</span>
+                        <span class="last-sync">最后同步: 2023-10-15 14:30</span>
+                    </div>
+                    <div class="sync-item">
+                        <span class="source-name">GitHub技术文档</span>
+                        <span class="status-badge processing">同步中...</span>
+                        <div class="progress-bar">
+                            <div class="progress" style="width: 65%"></div>
+                        </div>
+                    </div>
+                    <div class="sync-item">
+                        <span class="source-name">企业知识库</span>
+                        <span class="status-badge failed">同步失败</span>
+                        <span class="last-sync">最后尝试: 2023-10-16 09:15</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button onclick="startSync('source1')">开始同步</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="health-tab" class="tab-content">
+            <div class="card">
+                <h2>服务健康监控</h2>
+                <div class="health-monitor">
+                    <div class="metric">
+                        <div class="label">文档总数</div>
+                        <div class="value" id="total-docs">12,458</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">今日更新</div>
+                        <div class="value" id="today-updates">142</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">同步成功率</div>
+                        <div class="value" id="sync-success-rate">98.7%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="label">平均响应时间</div>
+                        <div class="value" id="avg-response">286ms</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>服务状态</h3>
+                    <div id="services-status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 标签切换
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // 移除所有标签和内容的激活状态
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // 激活当前标签和内容
+                this.classList.add('active');
+                const tabId = this.getAttribute('data-tab');
+                document.getElementById(`${tabId}-tab`).classList.add('active');
+            });
+        });
+
+        // API基础URL
+        const API_BASE_URL = 'http://localhost:8000';
+
+        // 查询功能
+        async function submitQuery() {
+            const query = document.getElementById('query').value;
+            const responseDiv = document.getElementById('response');
+            responseDiv.innerHTML = '查询中...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/v1/rag/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let resultsHtml = `查询耗时: ${(data.latency * 1000).toFixed(2)}ms\n检索方法: ${data.search_method}\n\n结果:\n`;
+
+                    data.results.forEach((r, i) => {
+                        resultsHtml += `${i+1}. [得分:${r.score.toFixed(3)}] ${r.metadata?.title || '无标题'}\n   ${r.content.slice(0, 200)}...\n\n`;
+                    });
+
+                    responseDiv.innerHTML = resultsHtml;
+                } else {
+                    responseDiv.innerHTML = `错误: ${data.detail || '未知错误'}`;
+                }
+            } catch (error) {
+                responseDiv.innerHTML = `错误: ${error.message}`;
+            }
+        }
+
+        // 文档上传功能
+        async function uploadDocument() {
+            const form = document.getElementById('upload-form');
+            const resultDiv = document.getElementById('upload-result');
+            resultDiv.innerHTML = '上传中...';
+
+            const formData = new FormData();
+            formData.append('file', form.file.files[0]);
+            formData.append('title', form.title.value);
+            formData.append('author', form.author.value);
+            formData.append('tags', form.tags.value);
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/v1/ingest/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.innerHTML = `上传成功！\n文档ID: ${data.doc_id}\n状态: ${data.status}\n消息: ${data.message}`;
+                    form.reset();
+                } else {
+                    resultDiv.innerHTML = `错误: ${data.detail || '未知错误'}`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `错误: ${error.message}`;
+            }
+        }
+
+        // 同步功能
+        async function startSync(sourceId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/v1/sync/start/${sourceId}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert(`同步任务已启动: ${data.message}`);
+                } else {
+                    alert(`错误: ${data.detail || '未知错误'}`);
+                }
+            } catch (error) {
+                alert(`错误: ${error.message}`);
+            }
+        }
+
+        // WebSocket连接
+        let syncSocket;
+        function connectWebSocket() {
+            syncSocket = new WebSocket(`ws://${window.location.hostname}:8000/v1/sync/ws`);
+
+            syncSocket.onopen = () => {
+                console.log('WebSocket连接已建立');
+            };
+
+            syncSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                updateSyncStatus(data);
+            };
+
+            syncSocket.onclose = () => {
+                console.log('WebSocket连接已关闭');
+                // 尝试重连
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            syncSocket.onerror = (error) => {
+                console.error('WebSocket错误:', error);
+            };
+        }
+
+        function updateSyncStatus(data) {
+            if (!data.source_id) return;
+
+            const sourceId = data.source_id;
+            const sourceName = getSourceName(sourceId);
+
+            let syncItem = document.querySelector(`.sync-item[data-id="${sourceId}"]`);
+
+            if (!syncItem) {
+                // 创建新的同步项
+                syncItem = document.createElement('div');
+                syncItem.className = 'sync-item';
+                syncItem.setAttribute('data-id', sourceId);
+                syncItem.innerHTML = `
+                    <span class="source-name">${sourceName}</span>
+                    <span class="status-badge">未知</span>
+                    <div class="progress-bar" style="display: none;">
+                        <div class="progress"></div>
+                    </div>
+                    <span class="last-sync"></span>
+                `;
+                document.getElementById('sync-status').appendChild(syncItem);
+            }
+
+            // 更新状态
+            const statusBadge = syncItem.querySelector('.status-badge');
+            const progressBar = syncItem.querySelector('.progress-bar');
+            const progress = syncItem.querySelector('.progress');
+            const lastSync = syncItem.querySelector('.last-sync');
+
+            if (data.status === 'processing') {
+                statusBadge.className = 'status-badge processing';
+                statusBadge.textContent = '同步中...';
+                progressBar.style.display = 'block';
+                progress.style.width = `${data.progress}%`;
+            } else if (data.status === 'completed') {
+                statusBadge.className = 'status-badge success';
+                statusBadge.textContent = '已同步';
+                progressBar.style.display = 'none';
+                lastSync.textContent = `最后同步: ${formatDateTime(data.completed_at || new Date().toISOString())}`;
+            } else if (data.status === 'failed') {
+                statusBadge.className = 'status-badge failed';
+                statusBadge.textContent = '同步失败';
+                progressBar.style.display = 'none';
+                lastSync.textContent = `最后尝试: ${formatDateTime(data.updated_at || new Date().toISOString())}`;
+            }
+        }
+
+        function getSourceName(sourceId) {
+            // 这里可以根据sourceId获取源名称
+            const sourceNames = {
+                'source1': '飞书产品文档',
+                'source2': 'GitHub技术文档',
+                'source3': '企业知识库'
+            };
+
+            return sourceNames[sourceId] || `文档源 ${sourceId}`;
+        }
+
+        function formatDateTime(isoString) {
+            const date = new Date(isoString);
+            return `${date.getFullYear()}-${padZero(date.getMonth() + 1)}-${padZero(date.getDate())} ${padZero(date.getHours())}:${padZero(date.getMinutes())}`;
+        }
+
+        function padZero(num) {
+            return num < 10 ? `0${num}` : num;
+        }
+
+        // 健康监控
+        async function updateHealthMetrics() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/v1/health`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('total-docs').textContent = data.metrics.total_docs.toLocaleString();
+                    document.getElementById('today-updates').textContent = data.metrics.today_updates;
+                    document.getElementById('sync-success-rate').textContent = `${(data.metrics.success_rate * 100).toFixed(1)}%`;
+                    document.getElementById('avg-response').textContent = `${data.metrics.avg_response}ms`;
+
+                    // 更新服务状态
+                    let servicesHtml = '<table style="width: 100%; border-collapse: collapse;">';
+                    servicesHtml += '<tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">服务</th><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">状态</th><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">延迟</th></tr>';
+
+                    for (const [service, status] of Object.entries(data.services)) {
+                        const statusColor = status.status === 'ok' ? '#2ecc71' : '#e74c3c';
+                        servicesHtml += `<tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">${service}</td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;"><span style="color: ${statusColor};">${status.status}</span></td>
+                            <td style="padding: 8px; border-bottom: 1px solid #ddd;">${status.latency ? status.latency + 'ms' : '-'}</td>
+                        </tr>`;
+                    }
+
+                    servicesHtml += '</table>';
+                    document.getElementById('services-status').innerHTML = servicesHtml;
+                }
+            } catch (error) {
+                console.error('获取健康指标失败:', error);
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 连接WebSocket
+            connectWebSocket();
+
+            // 更新健康指标
+            updateHealthMetrics();
+
+            // 定期更新健康指标
+            setInterval(updateHealthMetrics, 30000);
+        });
+    </script>
+</body>
+</html>
